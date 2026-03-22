@@ -33,12 +33,21 @@ type Result struct {
 
 var config Config
 var configPath string
+var version = "v1.0.1"
+var showVersion bool
 
 // ----------- MAIN -----------
 
 func main() {
 	flag.StringVar(&configPath, "config", "config.json", "Path to config file")
+	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println("exporter-aggregator version:", version)
+		os.Exit(0)
+	}
+
 	loadConfig(configPath)
 
 	http.HandleFunc("/metrics", metricsHandler)
@@ -46,6 +55,7 @@ func main() {
 	fmt.Println("🚀 Aggregator running on port", config.Port)
 	fmt.Println("Loaded targets:", len(config.Targets))
 	fmt.Println("Config file:", configPath)
+	fmt.Println("Version:", version)
 
 	http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil)
 }
