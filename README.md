@@ -1,36 +1,64 @@
-# Exporter Aggregator
+# Exporter Aggregator (Go)
 
-A lightweight Go-based HTTP server that aggregates Prometheus metrics from multiple exporter targets into a single `/metrics` endpoint. It also provides a `/health` endpoint for monitoring the status of all configured targets.
+A lightweight, dependency-free metrics aggregator designed to collect and expose metrics from multiple Prometheus exporters through a single endpoint.
 
-## Features
+## 🚀 Features
 
-- **Metrics Aggregation**: Collects and combines metrics from multiple Prometheus exporters
-- **Health Monitoring**: Provides health status for all configured targets
-- **Configurable Targets**: Easily configure multiple targets via JSON configuration
-- **Timeout Handling**: Configurable request timeouts for target fetching
-- **Concurrent Fetching**: Fetches metrics from all targets concurrently for better performance
+* Single `/metrics` endpoint for multiple exporters
+* Parallel requests (non-blocking)
+* Built-in health metrics
+* JSON configuration file
+* No external dependencies
+* Single static binary (easy deployment)
 
-## Installation
+---
 
-### Prerequisites
+## 🧠 How It Works
 
-- Go 1.16 or later
+The aggregator:
 
-### Build
+1. Fetches metrics from multiple targets in parallel
+2. Concatenates their outputs
+3. Adds health metrics for each target
+4. Exposes everything in Prometheus format
 
-Clone the repository and build the binary:
+---
+
+## 📦 Requirements
+
+* Go (for building only)
+* Linux / Unix system (or compatible)
+
+---
+
+## 🛠 Installation
+
+### 1. Clone or create project directory
 
 ```bash
-git clone <repository-url>
-cd exporter-aggregator
-$env:GOOS="linux"
-$env:GOARCH="amd64"
-go build -o ./build/exporter-aggregator main.go
+mkdir -p /apps/exporter-aggregator
+cd /apps/exporter-aggregator
 ```
 
-## Configuration
+### 2. Build the binary
 
-Create a `config.json` file with the following structure:
+```bash
+go build -o ./build/exporter-aggregator
+```
+
+For cross-compilation (from Windows to Linux):
+
+```bash
+$env:GOOS="linux"
+$env:GOARCH="amd64"
+go build -o ./build/exporter-aggregator
+```
+
+---
+
+## ⚙️ Configuration
+
+Create a `config.json` file:
 
 ```json
 {
@@ -38,84 +66,112 @@ Create a `config.json` file with the following structure:
   "timeout_ms": 2000,
   "targets": [
     {
-      "name": "podman-app-1",
-      "url": "http://localhost:9888/metrics"
+      "name": "svc_homepage_podman_exporter",
+      "url": "http://localhost:9881/metrics"
     },
     {
-      "name": "podman-app-2",
-      "url": "http://localhost:9888/metrics"
-    },
-    {
-      "name": "systemd-app-1",
-      "url": "http://localhost:9558/metrics"
+      "name": "svc_homepage_systemd_exporter",
+      "url": "http://localhost:9921/metrics"
     }
   ]
 }
 ```
 
-### Configuration Options
+### Fields
 
-- `port`: The port on which the aggregator server will listen (default: 9999)
-- `timeout_ms`: Timeout in milliseconds for HTTP requests to targets (default: 2000)
-- `targets`: Array of target objects, each containing:
-  - `name`: A descriptive name for the target
-  - `url`: The full URL to the target's `/metrics` endpoint
+| Field        | Description                |
+| ------------ | -------------------------- |
+| `port`       | HTTP port to expose        |
+| `timeout_ms` | Timeout per target request |
+| `targets`    | List of exporters          |
 
-## Usage
+---
 
-Run the aggregator with the default config:
-
-```bash
-./exporter-aggregator
-```
-
-Run with a custom config file:
+## ▶️ Run
 
 ```bash
-./exporter-aggregator -config /apps/proxy-monitoring/config.json
+./exporter-aggregator -config /apps/exporter-aggregator/config.json
 ```
 
-### Command Line Flags
+---
 
-- `-config`: Path to the configuration file (default: "config.json")
-
-## Endpoints
+## 📡 Endpoints
 
 ### `/metrics`
 
-Returns aggregated Prometheus metrics from all configured targets. Each target's metrics are prefixed with a comment indicating the target name and URL, followed by an `aggregator_target_up` metric indicating the target's status (1 for up, 0 for down).
+Prometheus-compatible endpoint containing:
 
-Example output:
+* Aggregated metrics from all targets
+* Health metrics per target
+* Global health status
+
+---
+
+## 📊 Example Output
+
 ```
-# TARGET podman-app-1 (http://localhost:9888/metrics)
-# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
-...
+# HELP aggregator_target_up Health status of each target (1=up, 0=down)
+# TYPE aggregator_target_up gauge
 
-aggregator_target_up{name="podman-app-1",url="http://localhost:9888/metrics"} 1
-```
+# TARGET svc_homepage_podman_exporter (http://localhost:9881/metrics)
+<metrics...>
+aggregator_target_up{name="svc_homepage_podman_exporter"} 1
 
-### `/health`
+# HELP aggregator_up Global health status (1=ok, 0=degraded)
+# TYPE aggregator_up gauge
+aggregator_up 1
 
-Returns a JSON response with the health status of all targets.
-
-- **Status Code**: 200 if all targets are healthy, 503 if any target is down
-- **Response Body**: JSON object containing overall status and individual target statuses
-
-Example response:
-```json
-{
-  "status": "ok",
-  "targets": [
-    {"name": "podman-app-1", "url": "http://localhost:9888/metrics", "status": "up"},
-    {"name": "podman-app-2", "url": "http://localhost:9888/metrics", "status": "up"}
-  ]
-}
+# HELP aggregator_targets_total Number of targets
+# TYPE aggregator_targets_total gauge
+aggregator_targets_total 2
 ```
 
-## Monitoring
+---
 
-The aggregator itself exposes metrics that can be scraped by Prometheus. Configure Prometheus to scrape the aggregator's `/metrics` endpoint.
+## 🔌 Prometheus Configuration
 
-## License
+```yaml
+scrape_configs:
+  - job_name: "exporter-aggregator"
+    static_configs:
+      - targets: ["localhost:9999"]
+```
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+---
+
+## 📈 Available Metrics
+
+| Metric                     | Description                      |
+| -------------------------- | -------------------------------- |
+| `aggregator_target_up`     | Target health (1 = up, 0 = down) |
+| `aggregator_up`            | Global health status             |
+| `aggregator_targets_total` | Number of configured targets     |
+
+---
+
+## ⚠️ Limitations
+
+* Metrics are concatenated (may include duplicate `HELP` / `TYPE`)
+* No deduplication or label rewriting
+* Not intended to replace native Prometheus multi-target scraping
+
+---
+
+## 💡 Use Cases
+
+* Reduce number of Prometheus scrape targets (multi user environments)
+* Aggregate exporters behind firewalls or proxies
+* Simple monitoring setups
+* Edge environments
+
+---
+
+## 📄 License
+
+GNU General Public License v3.0 (GPL-3.0)
+
+---
+
+## 👨‍💻 Author
+
+Valentin RONCORONI

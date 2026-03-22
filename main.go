@@ -42,7 +42,6 @@ func main() {
 	loadConfig(configPath)
 
 	http.HandleFunc("/metrics", metricsHandler)
-	http.HandleFunc("/health", healthHandler)
 
 	fmt.Println("🚀 Aggregator running on port", config.Port)
 	fmt.Println("Loaded targets:", len(config.Targets))
@@ -83,68 +82,50 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	output := ""
 
+	// ---------- METADATA ----------
+	output += "# HELP aggregator_target_up Health status of each target (1=up, 0=down)\n"
+	output += "# TYPE aggregator_target_up gauge\n"
+
+	allUp := true
+
+	// ---------- TARGET METRICS ----------
 	for _, res := range results {
 		output += fmt.Sprintf("# TARGET %s (%s)\n", res.Target.Name, res.Target.URL)
+
+		// metrics du target
 		output += res.Data + "\n"
-		output += fmt.Sprintf("aggregator_target_up{name=\"%s\",url=\"%s\"} %d\n\n",
+
+		// health metric
+		if res.Up == 0 {
+			allUp = false
+		}
+
+		output += fmt.Sprintf(
+			"aggregator_target_up{name=\"%s\",url=\"%s\"} %d\n\n",
 			res.Target.Name,
 			res.Target.URL,
 			res.Up,
 		)
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(output))
-}
+	// ---------- GLOBAL HEALTH ----------
+	output += "# HELP aggregator_up Global health status (1=ok, 0=degraded)\n"
+	output += "# TYPE aggregator_up gauge\n"
 
-// ----------- HEALTH -----------
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	ch := make(chan Result)
-
-	for _, t := range config.Targets {
-		go func(target Target) {
-			up := checkTarget(target)
-			ch <- Result{Target: target, Up: up}
-		}(t)
-	}
-
-	allUp := true
-	output := "["
-
-	for i := 0; i < len(config.Targets); i++ {
-		res := <-ch
-
-		status := "down"
-		if res.Up == 1 {
-			status = "up"
-		} else {
-			allUp = false
-		}
-
-		output += fmt.Sprintf(`{"name":"%s","url":"%s","status":"%s"}`,
-			res.Target.Name,
-			res.Target.URL,
-			status,
-		)
-
-		if i < len(config.Targets)-1 {
-			output += ","
-		}
-	}
-
-	output += "]"
-
-	code := 200
-	globalStatus := "ok"
+	global := 1
 	if !allUp {
-		code = 503
-		globalStatus = "degraded"
+		global = 0
 	}
 
-	w.WriteHeader(code)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"status":"%s","targets":%s}`, globalStatus, output)))
+	output += fmt.Sprintf("aggregator_up %d\n\n", global)
+
+	// ---------- COUNT ----------
+	output += "# HELP aggregator_targets_total Number of targets\n"
+	output += "# TYPE aggregator_targets_total gauge\n"
+	output += fmt.Sprintf("aggregator_targets_total %d\n", len(config.Targets))
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.Write([]byte(output))
 }
 
 // ----------- CORE -----------
