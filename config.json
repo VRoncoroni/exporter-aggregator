@@ -1,0 +1,22 @@
+{
+  "port": 9999,
+  "timeout_ms": 2000,
+  "targets": [
+    {
+      "name": "svc_homepage_podman_exporter",
+      "url": "http://localhost:9881/metrics"
+    },
+    {
+      "name": "svc_homepage_systemd_exporter",
+      "url": "http://localhost:9921/metrics"
+    },
+    {
+      "name": "svc_nginx_podman_exporter",
+      "url": "http://localhost:9880/metrics"
+    },
+    {
+      "name": "svc_nginx_systemd_exporter",
+      "url": "http://localhost:9920/metrics"
+    }
+  ]
+}
